@@ -30,10 +30,7 @@ function parseCurl(curl) {
 }
 
 async function requestBody(request) {
-  if (request.body !== undefined && request.body !== null) return typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
-  const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  return request.json();
 }
 
 async function uploadImage(payload) {
@@ -51,22 +48,24 @@ async function uploadImage(payload) {
   return result;
 }
 
-export default async function handler(request, response) {
-  try {
-    const url = new URL(request.url, 'http://localhost');
-    const route = url.searchParams.get('route') || 'session';
-    if (route === 'session' && request.method === 'GET') return response.status(200).json({ configured: Boolean(session), identifier: session?.headers.identifier || null, supplierId: session?.headers['supplier-id'] || null });
-    if (route === 'session' && request.method === 'POST') {
-      session = parseCurl((await requestBody(request)).curl);
-      return response.status(200).json({ ok: true, identifier: session.headers.identifier || null, supplierId: session.headers['supplier-id'] || null });
+export default {
+  async fetch(request) {
+    try {
+      const url = new URL(request.url);
+      const route = url.searchParams.get('route') || 'session';
+      if (route === 'session' && request.method === 'GET') return Response.json({ configured: Boolean(session), identifier: session?.headers.identifier || null, supplierId: session?.headers['supplier-id'] || null });
+      if (route === 'session' && request.method === 'POST') {
+        session = parseCurl((await requestBody(request)).curl);
+        return Response.json({ ok: true, identifier: session.headers.identifier || null, supplierId: session.headers['supplier-id'] || null });
+      }
+      if (route === 'session' && request.method === 'DELETE') {
+        session = null;
+        return Response.json({ ok: true });
+      }
+      if (route === 'upload' && request.method === 'POST') return Response.json(await uploadImage(await requestBody(request)));
+      return Response.json({ error: 'Not found' }, { status: 404 });
+    } catch (error) {
+      return Response.json({ error: error.message || 'Unexpected server error' }, { status: error.status || 500 });
     }
-    if (route === 'session' && request.method === 'DELETE') {
-      session = null;
-      return response.status(200).json({ ok: true });
-    }
-    if (route === 'upload' && request.method === 'POST') return response.status(200).json(await uploadImage(await requestBody(request)));
-    return response.status(404).json({ error: 'Not found' });
-  } catch (error) {
-    return response.status(error.status || 500).json({ error: error.message || 'Unexpected server error' });
   }
-}
+};
