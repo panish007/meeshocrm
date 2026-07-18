@@ -14,6 +14,7 @@ function parseCurl(curl) {
   if (!urlMatch) throw new Error('Could not find the request URL in the cURL');
   const url = new URL(urlMatch[2] || urlMatch[1]);
   if (url.hostname !== EXPECTED_HOST || url.pathname !== EXPECTED_PATH) throw new Error('This cURL is not for the supported Meesho image-upload endpoint');
+  url.protocol = 'https:';
   const headers = {};
   const headerRegex = /(?:^|\s)(?:-H|--header)\s+((['"])([\s\S]*?)\2|\S+)/g;
   let match;
@@ -25,8 +26,11 @@ function parseCurl(curl) {
   const cookieMatch = curl.match(/(?:^|\s)(?:-b|--cookie)\s+((['"])([\s\S]*?)\2|\S+)/);
   if (cookieMatch) headers.cookie = shellUnquote(cookieMatch[1]);
   if (!headers.cookie) throw new Error('No cookie (-b or --cookie) was found');
-  const allowed = ['accept', 'accept-language', 'browser-id', 'client-package-version', 'client-type', 'identifier', 'supplier-id', 'referer', 'user-agent', 'cookie'];
-  return { url: url.toString(), headers: Object.fromEntries(allowed.filter(key => headers[key]).map(key => [key, headers[key]])) };
+  const allowed = ['accept', 'accept-language', 'browser-id', 'client-package-version', 'client-type', 'identifier', 'supplier-id', 'origin', 'referer', 'user-agent', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site', 'priority', 'x-requested-with', 'cookie'];
+  const forwarded = Object.fromEntries(allowed.filter(key => headers[key]).map(key => [key, headers[key]]));
+  forwarded.origin ||= 'https://supplier.meesho.com';
+  forwarded.referer ||= 'https://supplier.meesho.com/';
+  return { url: url.toString(), headers: forwarded };
 }
 
 async function requestBody(request) {
