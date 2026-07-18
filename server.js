@@ -107,9 +107,9 @@ async function handleRequest(req, res) {
   }
 }
 
-const server = http.createServer(handleRequest);
-
+let server = null;
 if (require.main === module) {
+  server = http.createServer(handleRequest);
   server.listen(PORT, HOST, () => console.log(`Meesho uploader running at http://${HOST}:${PORT}`));
 }
 
