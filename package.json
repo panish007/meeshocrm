@@ -1,0 +1,12 @@
+{
+  "name": "meesho-bulk-image-uploader",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
