@@ -66,7 +66,11 @@ export default {
         session = null;
         return Response.json({ ok: true });
       }
-      if (route === 'upload' && request.method === 'POST') return Response.json(await uploadImage(await requestBody(request)));
+      if (route === 'upload' && request.method === 'POST') {
+        const payload = await requestBody(request);
+        if (payload.curl) session = parseCurl(payload.curl);
+        return Response.json(await uploadImage(payload));
+      }
       return Response.json({ error: 'Not found' }, { status: 404 });
     } catch (error) {
       return Response.json({ error: error.message || 'Unexpected server error' }, { status: error.status || 500 });

@@ -103,6 +103,7 @@ async function handleRequest(req, res) {
     }
     if (req.method === 'POST' && req.url === '/api/upload') {
       const body = JSON.parse((await readBody(req)).toString('utf8'));
+      if (body.curl) session = parseCurl(body.curl);
       return json(res, 200, await uploadImage(body));
     }
     json(res, 404, { error: 'Not found' });
