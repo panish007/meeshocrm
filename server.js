@@ -16,9 +16,6 @@ function json(res, status, value) {
 }
 
 function readBody(req) {
-  if (req.body !== undefined && req.body !== null) {
-    return Promise.resolve(Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body)));
-  }
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -48,7 +45,6 @@ function parseCurl(curl) {
   if (!urlMatch) throw new Error('Could not find the request URL in the cURL');
   const url = new URL(urlMatch[2] || urlMatch[1]);
   if (url.hostname !== EXPECTED_HOST || url.pathname !== EXPECTED_PATH) throw new Error('This cURL is not for the supported Meesho image-upload endpoint');
-  url.protocol = 'https:';
 
   const headers = {};
   const headerRegex = /(?:^|\s)(?:-H|--header)\s+((['"])([\s\S]*?)\2|\S+)/g;
@@ -62,11 +58,8 @@ function parseCurl(curl) {
   if (cookieMatch) headers.cookie = shellUnquote(cookieMatch[1]);
   if (!headers.cookie) throw new Error('No cookie (-b or --cookie) was found');
 
-  const allowed = ['accept', 'accept-language', 'browser-id', 'client-package-version', 'client-type', 'identifier', 'supplier-id', 'origin', 'referer', 'user-agent', 'sec-ch-ua', 'sec-ch-ua-mobile', 'sec-ch-ua-platform', 'sec-fetch-dest', 'sec-fetch-mode', 'sec-fetch-site', 'priority', 'x-requested-with', 'cookie'];
-  const forwarded = Object.fromEntries(allowed.filter(k => headers[k]).map(k => [k, headers[k]]));
-  forwarded.origin ||= 'https://supplier.meesho.com';
-  forwarded.referer ||= 'https://supplier.meesho.com/';
-  return { url: url.toString(), headers: forwarded };
+  const allowed = ['accept', 'accept-language', 'browser-id', 'client-package-version', 'client-type', 'identifier', 'supplier-id', 'referer', 'user-agent', 'cookie'];
+  return { url: url.toString(), headers: Object.fromEntries(allowed.filter(k => headers[k]).map(k => [k, headers[k]])) };
 }
 
 async function uploadImage(payload) {
@@ -84,13 +77,7 @@ async function uploadImage(payload) {
   return result;
 }
 
-function updateSessionCookie(curl) {
-  const fresh = parseCurl(curl);
-  if (!session) return fresh;
-  return { ...session, headers: { ...session.headers, cookie: fresh.headers.cookie } };
-}
-
-async function handleRequest(req, res) {
+const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
       const file = fs.readFileSync(path.join(__dirname, 'index.html'));
@@ -100,7 +87,7 @@ async function handleRequest(req, res) {
     if (req.method === 'GET' && req.url === '/api/session') return json(res, 200, { configured: Boolean(session), identifier: session?.headers.identifier || null, supplierId: session?.headers['supplier-id'] || null });
     if (req.method === 'POST' && req.url === '/api/session') {
       const body = JSON.parse((await readBody(req)).toString('utf8'));
-      session = updateSessionCookie(body.curl);
+      session = parseCurl(body.curl);
       return json(res, 200, { ok: true, identifier: session.headers.identifier || null, supplierId: session.headers['supplier-id'] || null });
     }
     if (req.method === 'DELETE' && req.url === '/api/session') {
@@ -109,19 +96,14 @@ async function handleRequest(req, res) {
     }
     if (req.method === 'POST' && req.url === '/api/upload') {
       const body = JSON.parse((await readBody(req)).toString('utf8'));
-      if (body.curl) session = updateSessionCookie(body.curl);
       return json(res, 200, await uploadImage(body));
     }
     json(res, 404, { error: 'Not found' });
   } catch (error) {
     json(res, error.status || 500, { error: error.message || 'Unexpected server error', details: error.details });
   }
-}
+});
 
-let server = null;
-if (require.main === module) {
-  server = http.createServer(handleRequest);
-  server.listen(PORT, HOST, () => console.log(`Meesho uploader running at http://${HOST}:${PORT}`));
-}
+server.listen(PORT, HOST, () => console.log(`Meesho uploader running at http://${HOST}:${PORT}`));
 
-module.exports = { parseCurl, server, handleRequest };
+module.exports = { parseCurl, server };
