@@ -16,6 +16,9 @@ function json(res, status, value) {
 }
 
 function readBody(req) {
+  if (req.body !== undefined && req.body !== null) {
+    return Promise.resolve(Buffer.from(typeof req.body === 'string' ? req.body : JSON.stringify(req.body)));
+  }
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -77,7 +80,7 @@ async function uploadImage(payload) {
   return result;
 }
 
-const server = http.createServer(async (req, res) => {
+async function handleRequest(req, res) {
   try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
       const file = fs.readFileSync(path.join(__dirname, 'index.html'));
@@ -102,8 +105,12 @@ const server = http.createServer(async (req, res) => {
   } catch (error) {
     json(res, error.status || 500, { error: error.message || 'Unexpected server error', details: error.details });
   }
-});
+}
 
-server.listen(PORT, HOST, () => console.log(`Meesho uploader running at http://${HOST}:${PORT}`));
+const server = http.createServer(handleRequest);
 
-module.exports = { parseCurl, server };
+if (require.main === module) {
+  server.listen(PORT, HOST, () => console.log(`Meesho uploader running at http://${HOST}:${PORT}`));
+}
+
+module.exports = { parseCurl, server, handleRequest };
