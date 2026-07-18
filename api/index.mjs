@@ -52,6 +52,12 @@ async function uploadImage(payload) {
   return result;
 }
 
+function updateSessionCookie(curl) {
+  const fresh = parseCurl(curl);
+  if (!session) return fresh;
+  return { ...session, headers: { ...session.headers, cookie: fresh.headers.cookie } };
+}
+
 export default {
   async fetch(request) {
     try {
@@ -59,7 +65,7 @@ export default {
       const route = url.searchParams.get('route') || 'session';
       if (route === 'session' && request.method === 'GET') return Response.json({ configured: Boolean(session), identifier: session?.headers.identifier || null, supplierId: session?.headers['supplier-id'] || null });
       if (route === 'session' && request.method === 'POST') {
-        session = parseCurl((await requestBody(request)).curl);
+        session = updateSessionCookie((await requestBody(request)).curl);
         return Response.json({ ok: true, identifier: session.headers.identifier || null, supplierId: session.headers['supplier-id'] || null });
       }
       if (route === 'session' && request.method === 'DELETE') {
@@ -68,7 +74,7 @@ export default {
       }
       if (route === 'upload' && request.method === 'POST') {
         const payload = await requestBody(request);
-        if (payload.curl) session = parseCurl(payload.curl);
+        if (payload.curl) session = updateSessionCookie(payload.curl);
         return Response.json(await uploadImage(payload));
       }
       return Response.json({ error: 'Not found' }, { status: 404 });

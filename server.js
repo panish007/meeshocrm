@@ -84,6 +84,12 @@ async function uploadImage(payload) {
   return result;
 }
 
+function updateSessionCookie(curl) {
+  const fresh = parseCurl(curl);
+  if (!session) return fresh;
+  return { ...session, headers: { ...session.headers, cookie: fresh.headers.cookie } };
+}
+
 async function handleRequest(req, res) {
   try {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
@@ -94,7 +100,7 @@ async function handleRequest(req, res) {
     if (req.method === 'GET' && req.url === '/api/session') return json(res, 200, { configured: Boolean(session), identifier: session?.headers.identifier || null, supplierId: session?.headers['supplier-id'] || null });
     if (req.method === 'POST' && req.url === '/api/session') {
       const body = JSON.parse((await readBody(req)).toString('utf8'));
-      session = parseCurl(body.curl);
+      session = updateSessionCookie(body.curl);
       return json(res, 200, { ok: true, identifier: session.headers.identifier || null, supplierId: session.headers['supplier-id'] || null });
     }
     if (req.method === 'DELETE' && req.url === '/api/session') {
@@ -103,7 +109,7 @@ async function handleRequest(req, res) {
     }
     if (req.method === 'POST' && req.url === '/api/upload') {
       const body = JSON.parse((await readBody(req)).toString('utf8'));
-      if (body.curl) session = parseCurl(body.curl);
+      if (body.curl) session = updateSessionCookie(body.curl);
       return json(res, 200, await uploadImage(body));
     }
     json(res, 404, { error: 'Not found' });
